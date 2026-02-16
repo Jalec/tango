@@ -1,0 +1,157 @@
+#include <stdio.h>
+#include <string.h>
+#include <math.h>
+#include <SDL2/SDL.h>
+
+#include "render_figures.h"
+
+#define WINDOW_TITLE "Tango"
+#define WINDOW_WIDTH 720
+#define WINDOW_HEIGHT 720
+
+#define TABLE_WIDTH 720
+#define TABLE_HEIGHT 720
+#define TABLE_START_X 0
+#define TABLE_START_Y 0
+
+typedef enum {
+	EMPTY = 0,
+	MOON = 1,
+	SUN = 2
+} figure_t;
+
+
+void draw_figures(SDL_Renderer *prenderer, figure_t ***game_table);
+
+void create_table_game(SDL_Renderer *prenderer) {
+	const SDL_Rect table_frame = { .x = TABLE_START_X, .y = TABLE_START_Y, .w = TABLE_WIDTH, .h = TABLE_HEIGHT };
+	SDL_SetRenderDrawColor(prenderer, 255, 255, 255, SDL_ALPHA_OPAQUE);
+	SDL_RenderDrawRect(prenderer, &table_frame);
+	
+	for (int i = 1; i < 6; i++) {
+		SDL_RenderDrawLine(prenderer, TABLE_START_X,TABLE_START_Y + (i * 120), TABLE_WIDTH,TABLE_START_Y + (i * 120)); // Horizontal lines 
+		SDL_RenderDrawLine(prenderer, TABLE_START_X + (i * 120), TABLE_START_Y, TABLE_START_X + (i * 120), TABLE_HEIGHT); // Vertical lines
+	}
+}
+
+void render_updated_frame(SDL_Renderer *prenderer, figure_t *** game_table) {		
+	SDL_SetRenderDrawColor(prenderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
+	SDL_RenderClear(prenderer);
+	create_table_game(prenderer);
+	draw_figures(prenderer, game_table);
+	SDL_RenderPresent(prenderer);
+}
+
+void initialize_game_table(figure_t ***game_table){
+	*game_table = malloc(6 * sizeof(figure_t *));
+	for(int i = 0; i<6; i++){
+		(*game_table)[i] = malloc(6*sizeof(figure_t));
+		for(int j = 0; j < 6; j++){
+			(*game_table)[i][j] = EMPTY;
+		}
+	}
+}
+
+void free_game_table(figure_t ***game_table){
+	for(int i = 0; i < 6; i++) {
+		free((*game_table)[i]);
+	}
+	free(*game_table);
+}
+
+
+void draw_figures(SDL_Renderer *prenderer, figure_t ***game_table){
+	for(int i = 0; i < 6; i++){
+		for(int j = 0; j < 6; j++) {
+			switch((*game_table)[i][j]) {
+				case MOON:
+					SDL_RenderDrawCircle(prenderer, 60 + (i*120), 60 + (j*120), 30);
+					break;
+				case SUN:
+					const SDL_Rect sun = { .x = 40 + (i*120), .y = 40 + (j*120), .w = 40, .h = 40 };
+					SDL_RenderDrawRect(prenderer, &sun);
+					break;
+			}	
+		}
+	}	
+}
+
+int coord_to_table(int coord) {
+	double result = (double)(coord - 60) / 120;
+	return (int)round(result);
+}
+
+figure_t get_next_figure(figure_t current) {
+	switch(current){
+		case MOON:
+			return SUN;
+			break;
+		case SUN:
+			return EMPTY;
+			break;
+		case EMPTY:
+			return MOON;
+			break;
+		default:
+			return EMPTY;
+	}
+}
+
+int main () {
+	// We initialize the SDL Library
+    SDL_Init(SDL_INIT_VIDEO);
+	
+	// We create a window
+    SDL_Window *pwindow = SDL_CreateWindow(WINDOW_TITLE, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, WINDOW_WIDTH, WINDOW_HEIGHT, 0);
+
+    if(pwindow == NULL) {
+        printf("BAD WINDOW");
+        return 1;
+    }
+
+	// We create a renderer that we will use in the window
+   	SDL_Renderer *prenderer = SDL_CreateRenderer(pwindow,-1, 0);
+
+	// We create the 2D Array
+	figure_t **game_table;
+	initialize_game_table(&game_table);
+
+	game_table[0][0] = 1;
+	game_table[2][2] = 2;
+	
+	//draw_figures(prenderer, &game_table);
+	render_updated_frame(prenderer, &game_table);
+
+	int game_running = 1;
+	while (game_running) {
+		SDL_Event event;
+		while(SDL_PollEvent(&event)) {
+			switch(event.type) {
+				case SDL_QUIT:
+					game_running = 0;
+					break;
+				case SDL_KEYDOWN:
+					if(!strcmp(SDL_GetKeyName(event.key.keysym.sym), "Escape")) {
+						game_running = 0;
+						break;
+					}
+					break;
+				case SDL_MOUSEBUTTONDOWN:
+					// printf("x: %d, y: %d\n", event.button.x, event.button.y);	
+					// printf("x_coord: %d, y_coord: %d\n", coord_to_table(event.button.x), coord_to_table(event.button.y));
+					
+					game_table[coord_to_table(event.button.x)][coord_to_table(event.button.y)] = get_next_figure(game_table[coord_to_table(event.button.x)][coord_to_table(event.button.y)]);
+					render_updated_frame(prenderer, &game_table);
+					break;
+			}
+		}
+	
+		SDL_Delay(16);
+	}
+
+	free_game_table(&game_table);
+    SDL_DestroyWindow(pwindow);
+	SDL_Quit();
+
+    return 0;
+}
