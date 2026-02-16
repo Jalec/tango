@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
+#include <stdlib.h>
+#include <time.h>
 #include <SDL2/SDL.h>
 
 #include "render_figures.h"
@@ -22,6 +24,8 @@ typedef enum {
 
 
 void draw_figures(SDL_Renderer *prenderer, figure_t ***game_table);
+bool check_figure(figure_t selected_figure, int x, int y, figure_t ***game_table); 
+
 
 void create_table_game(SDL_Renderer *prenderer) {
 	const SDL_Rect table_frame = { .x = TABLE_START_X, .y = TABLE_START_Y, .w = TABLE_WIDTH, .h = TABLE_HEIGHT };
@@ -51,6 +55,48 @@ void initialize_game_table(figure_t ***game_table){
 		}
 	}
 }
+
+bool check_neighbours(figure_t selected_figure, int x, int y, figure_t ***game_table) {
+	bool status = 1;
+	int repeated_x_figures = 0;
+	int repeated_y_figures = 0;
+
+	for(int i = 0; i < x; i++) {
+		if((*game_table)[i][y] == selected_figure){
+			repeated_x_figures++;
+		}	
+	}
+
+	for (int j = 0; j < y; j++){
+		if((*game_table)[x][j] == selected_figure){
+			repeated_y_figures++;
+		}	
+	}
+
+	if((repeated_x_figures == 3) || (repeated_y_figures == 3)){
+		status = 0;
+	}
+
+	return status;
+}
+
+void rand_solving_game_table(figure_t ***game_table){
+	for(int i = 0; i<6; i++){
+		for(int j = 0; j < 6; j++){
+			figure_t random_figure = (rand() % (SUN - MOON +1)) + MOON;
+			if (check_figure(random_figure, i, j, game_table) == 1 && check_neighbours(random_figure, i, j, game_table) == 1) {
+				(*game_table)[i][j] = random_figure;
+			} else {
+				if(random_figure == SUN) {
+					(*game_table)[i][j] = MOON;
+				} else {
+					(*game_table)[i][j] = SUN;
+				}
+			}
+		}
+	}
+}
+
 
 void free_game_table(figure_t ***game_table){
 	for(int i = 0; i < 6; i++) {
@@ -97,6 +143,36 @@ figure_t get_next_figure(figure_t current) {
 	}
 }
 
+bool check_figure(figure_t selected_figure, int x, int y, figure_t ***game_table) {
+	bool status = 1;
+
+	// Check rows
+	if(x != 0 && x != 1 ) {
+		if((*game_table)[x - 1][y] == selected_figure && (*game_table)[x - 2][y] == selected_figure) {
+			status = 0;
+		}
+	}
+	if(x != 4 && x != 5) {
+		if((*game_table)[x + 1][y] == selected_figure && (*game_table)[x + 2][y] == selected_figure) {
+			status = 0;
+		}
+	}
+
+	// Check columns
+	if(y != 0 && y != 1 ) {
+		if((*game_table)[x][y - 1] == selected_figure && (*game_table)[x][y - 2] == selected_figure) {
+			status = 0;
+		}
+	}
+	if(y != 4 && y != 5) {
+		if((*game_table)[x][y + 1] == selected_figure && (*game_table)[x][y + 2] == selected_figure) {
+			status = 0;
+		}
+	}
+
+	return status;
+}
+
 int main () {
 	// We initialize the SDL Library
     SDL_Init(SDL_INIT_VIDEO);
@@ -114,10 +190,9 @@ int main () {
 
 	// We create the 2D Array
 	figure_t **game_table;
+	srand(time(NULL));
 	initialize_game_table(&game_table);
-
-	game_table[0][0] = 1;
-	game_table[2][2] = 2;
+	rand_solving_game_table(&game_table);			
 	
 	//draw_figures(prenderer, &game_table);
 	render_updated_frame(prenderer, &game_table);
@@ -137,10 +212,11 @@ int main () {
 					}
 					break;
 				case SDL_MOUSEBUTTONDOWN:
-					// printf("x: %d, y: %d\n", event.button.x, event.button.y);	
-					// printf("x_coord: %d, y_coord: %d\n", coord_to_table(event.button.x), coord_to_table(event.button.y));
-					
-					game_table[coord_to_table(event.button.x)][coord_to_table(event.button.y)] = get_next_figure(game_table[coord_to_table(event.button.x)][coord_to_table(event.button.y)]);
+					figure_t selected_figure = get_next_figure(game_table[coord_to_table(event.button.x)][coord_to_table(event.button.y)]);
+					game_table[coord_to_table(event.button.x)][coord_to_table(event.button.y)] = selected_figure;
+				    
+					//check_figure(selected_figure, coord_to_table(event.button.x), coord_to_table(event.button.y), &game_table);
+
 					render_updated_frame(prenderer, &game_table);
 					break;
 			}
