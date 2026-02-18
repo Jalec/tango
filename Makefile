@@ -11,7 +11,7 @@ SRCS = main.c render_figures.c
 OBJS = $(SRCS:.c=.o)
 
 # Define the executable
-TARGET = program
+TARGET = tango
 
 # Default target to build the executable
 all: $(TARGET)

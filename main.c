@@ -24,8 +24,9 @@ typedef enum {
 
 
 void draw_figures(SDL_Renderer *prenderer, figure_t ***game_table);
-bool check_figure(figure_t selected_figure, int x, int y, figure_t ***game_table); 
-
+bool is_safe(figure_t potential_figure, int x, int y, figure_t ***game_table);
+bool check_adjency(figure_t selected_figure, int x, int y, figure_t ***game_table); 
+int solver(figure_t ***game_table); 
 
 void create_table_game(SDL_Renderer *prenderer) {
 	const SDL_Rect table_frame = { .x = TABLE_START_X, .y = TABLE_START_Y, .w = TABLE_WIDTH, .h = TABLE_HEIGHT };
@@ -56,47 +57,116 @@ void initialize_game_table(figure_t ***game_table){
 	}
 }
 
-bool check_neighbours(figure_t selected_figure, int x, int y, figure_t ***game_table) {
+bool check_balance(figure_t selected_figure, int x, int y, figure_t ***game_table) {
 	bool status = 1;
 	int repeated_x_figures = 0;
 	int repeated_y_figures = 0;
-
-	for(int i = 0; i < x; i++) {
+	
+	for(int i = 0; i < 6; i++) {
 		if((*game_table)[i][y] == selected_figure){
 			repeated_x_figures++;
-		}	
-	}
-
-	for (int j = 0; j < y; j++){
-		if((*game_table)[x][j] == selected_figure){
+		}
+		if((*game_table)[x][i] == selected_figure){
 			repeated_y_figures++;
 		}	
 	}
 
-	if((repeated_x_figures == 3) || (repeated_y_figures == 3)){
+	if((repeated_x_figures >= 3) || (repeated_y_figures >= 3)){
 		status = 0;
 	}
+	
+	// EXPERIMENTING
+	// printf("x_figures: %d, y_figures: %d\n", repeated_x_figures, repeated_y_figures);
 
 	return status;
 }
 
-void rand_solving_game_table(figure_t ***game_table){
-	for(int i = 0; i<6; i++){
-		for(int j = 0; j < 6; j++){
-			figure_t random_figure = (rand() % (SUN - MOON +1)) + MOON;
-			if (check_figure(random_figure, i, j, game_table) == 1 && check_neighbours(random_figure, i, j, game_table) == 1) {
-				(*game_table)[i][j] = random_figure;
-			} else {
-				if(random_figure == SUN) {
-					(*game_table)[i][j] = MOON;
-				} else {
-					(*game_table)[i][j] = SUN;
-				}
-			}
+bool is_safe(figure_t potential_figure, int x, int y, figure_t ***game_table) {
+	if(check_balance(potential_figure, x, y, game_table) == 1 && check_adjency(potential_figure, x, y, game_table) == 1) {
+		return 1;
+	}
+	return 0;
+}
+
+figure_t opposite_figure(figure_t figure) {
+	if(figure == SUN) {
+		return MOON;
+	}
+	return SUN;
+}
+
+
+void backtracking(int *x, int *y, figure_t ***game_table) {
+	if(*x == 0) {
+		(*y)--;
+		*x = 5;
+	} else {
+		(*x)--;
+	}
+	
+	if(is_safe(opposite_figure((*game_table)[*x][*y]), *x, *y, game_table)) {
+		(*game_table)[*x][*y] = opposite_figure((*game_table)[*x][*y]);
+		if(*x < 5) {
+			(*x)++;
+		} else {
+			(*x) = 0;
+			(*y)++;
 		}
+	} else {
+		(*game_table)[*x][*y] = EMPTY;
+		printf("Check\n");
+		backtracking(x, y, game_table);
 	}
 }
 
+void rand_solving_game_table(figure_t ***game_table){
+	int x = 0;
+	int y = 0;
+	while ((*game_table)[x][y] == EMPTY) {
+		printf("Checking x: %d, y: %d\n", x, y);
+		if((*game_table)[x][y] != EMPTY) {
+			if(x < 5) {
+				x++;
+			} else {
+				x = 0;
+				y++;
+			}
+		} else {
+			figure_t random_figure = (rand() % (SUN - MOON +1)) + MOON;
+			if (is_safe(random_figure, x, y, game_table)) {
+				(*game_table)[x][y] = random_figure;
+				if(x < 5) {
+					x++;
+				} else {
+					x = 0;
+					y++;
+				}
+			} else if(is_safe(opposite_figure(random_figure), x, y, game_table)) {
+				(*game_table)[x][y] = opposite_figure(random_figure);
+				if(x < 5) {
+					x++;
+				} else {
+					x = 0;
+					y++;
+				}
+			} else {
+				backtracking(&x, &y, game_table);
+			}
+		}
+	} 		
+}
+
+bool answer_is_valid(figure_t ***game_table) {
+	for(int i = 0; i < 6; i++){
+		for(int j = 0; j < 6; j++) {
+			if(!is_safe((*game_table)[i][j], i, j, game_table)){
+				printf("x: %d, y: %d\n", i, j);
+				return 0;
+			}	
+		}
+	}
+	return 1;
+}
 
 void free_game_table(figure_t ***game_table){
 	for(int i = 0; i < 6; i++) {
@@ -143,7 +213,7 @@ figure_t get_next_figure(figure_t current) {
 	}
 }
 
-bool check_figure(figure_t selected_figure, int x, int y, figure_t ***game_table) {
+bool check_adjency(figure_t selected_figure, int x, int y, figure_t ***game_table) {
 	bool status = 1;
 
 	// Check rows
@@ -190,11 +260,16 @@ int main () {
 
 	// We create the 2D Array
 	figure_t **game_table;
+
 	srand(time(NULL));
 	initialize_game_table(&game_table);
-	rand_solving_game_table(&game_table);			
-	
-	//draw_figures(prenderer, &game_table);
+	rand_solving_game_table(&game_table);
+
+	if(answer_is_valid(&game_table)) {
+		printf("Valid grid!");
+	}
+	//printf("cells: %d", rand_solving_game_table(&game_table));
+		
 	render_updated_frame(prenderer, &game_table);
 
 	int game_running = 1;
@@ -213,9 +288,10 @@ int main () {
 					break;
 				case SDL_MOUSEBUTTONDOWN:
 					figure_t selected_figure = get_next_figure(game_table[coord_to_table(event.button.x)][coord_to_table(event.button.y)]);
+
+					printf("%d\n",is_safe(selected_figure, coord_to_table(event.button.x), coord_to_table(event.button.y), &game_table));
 					game_table[coord_to_table(event.button.x)][coord_to_table(event.button.y)] = selected_figure;
 				    
-					//check_figure(selected_figure, coord_to_table(event.button.x), coord_to_table(event.button.y), &game_table);
 
 					render_updated_frame(prenderer, &game_table);
 					break;
@@ -224,7 +300,7 @@ int main () {
 	
 		SDL_Delay(16);
 	}
-
+	
 	free_game_table(&game_table);
     SDL_DestroyWindow(pwindow);
 	SDL_Quit();
