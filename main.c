@@ -25,8 +25,7 @@ typedef enum {
 
 void draw_figures(SDL_Renderer *prenderer, figure_t ***game_table);
 bool is_safe(figure_t potential_figure, int x, int y, figure_t ***game_table);
-bool check_adjency(figure_t selected_figure, int x, int y, figure_t ***game_table); 
-int solver(figure_t ***game_table); 
+bool check_adjency(figure_t selected_figure, int x, int y, figure_t ***game_table);
 
 void create_table_game(SDL_Renderer *prenderer) {
 	const SDL_Rect table_frame = { .x = TABLE_START_X, .y = TABLE_START_Y, .w = TABLE_WIDTH, .h = TABLE_HEIGHT };
@@ -75,9 +74,6 @@ bool check_balance(figure_t selected_figure, int x, int y, figure_t ***game_tabl
 		status = 0;
 	}
 	
-	// EXPERIMENTING
-	// printf("x_figures: %d, y_figures: %d\n", repeated_x_figures, repeated_y_figures);
-
 	return status;
 }
 
@@ -93,67 +89,6 @@ figure_t opposite_figure(figure_t figure) {
 		return MOON;
 	}
 	return SUN;
-}
-
-
-void backtracking(int *x, int *y, figure_t ***game_table) {
-	if(*x == 0) {
-		(*y)--;
-		*x = 5;
-	} else {
-		(*x)--;
-	}
-	
-	if(is_safe(opposite_figure((*game_table)[*x][*y]), *x, *y, game_table)) {
-		(*game_table)[*x][*y] = opposite_figure((*game_table)[*x][*y]);
-		if(*x < 5) {
-			(*x)++;
-		} else {
-			(*x) = 0;
-			(*y)++;
-		}
-	} else {
-		(*game_table)[*x][*y] = EMPTY;
-		printf("Check\n");
-		backtracking(x, y, game_table);
-	}
-}
-
-void rand_solving_game_table(figure_t ***game_table){
-	int x = 0;
-	int y = 0;
-	while ((*game_table)[x][y] == EMPTY) {
-		printf("Checking x: %d, y: %d\n", x, y);
-		if((*game_table)[x][y] != EMPTY) {
-			if(x < 5) {
-				x++;
-			} else {
-				x = 0;
-				y++;
-			}
-		} else {
-			figure_t random_figure = (rand() % (SUN - MOON +1)) + MOON;
-			if (is_safe(random_figure, x, y, game_table)) {
-				(*game_table)[x][y] = random_figure;
-				if(x < 5) {
-					x++;
-				} else {
-					x = 0;
-					y++;
-				}
-			} else if(is_safe(opposite_figure(random_figure), x, y, game_table)) {
-				(*game_table)[x][y] = opposite_figure(random_figure);
-				if(x < 5) {
-					x++;
-				} else {
-					x = 0;
-					y++;
-				}
-			} else {
-				backtracking(&x, &y, game_table);
-			}
-		}
-	} 		
 }
 
 bool answer_is_valid(figure_t ***game_table) {
@@ -222,11 +157,11 @@ bool check_adjency(figure_t selected_figure, int x, int y, figure_t ***game_tabl
 			status = 0;
 		}
 	}
-	if(x != 4 && x != 5) {
-		if((*game_table)[x + 1][y] == selected_figure && (*game_table)[x + 2][y] == selected_figure) {
-			status = 0;
-		}
-	}
+	//if(x != 4 && x != 5) {
+	//	if((*game_table)[x + 1][y] == selected_figure && (*game_table)[x + 2][y] == selected_figure) {
+	//		status = 0;
+	//	}
+	//}
 
 	// Check columns
 	if(y != 0 && y != 1 ) {
@@ -234,13 +169,41 @@ bool check_adjency(figure_t selected_figure, int x, int y, figure_t ***game_tabl
 			status = 0;
 		}
 	}
-	if(y != 4 && y != 5) {
-		if((*game_table)[x][y + 1] == selected_figure && (*game_table)[x][y + 2] == selected_figure) {
-			status = 0;
-		}
-	}
+	//if(y != 4 && y != 5) {
+	//	if((*game_table)[x][y + 1] == selected_figure && (*game_table)[x][y + 2] == selected_figure) {
+	//		status = 0;
+	//	}
+	//}
 
 	return status;
+}
+
+void shuffle(figure_t *choices) {
+	figure_t rand_figure = (rand() % (SUN - MOON +1)) + MOON;
+	figure_t opp_figure = opposite_figure(rand_figure);
+	choices[0] = rand_figure;
+	choices[1] = opp_figure;
+}
+
+bool solve(figure_t ***game_table, int x, int y) {
+	if(y == 6) {
+		return true;
+	}
+
+	figure_t choices[2] = {0,0};
+	shuffle(choices);
+
+	int next_x = (x == 5) ? 0 : x + 1;
+	int next_y = (x < 5) ? y : y + 1;
+	
+	for(int i = 0; i < 2; i++) {
+		if(is_safe(choices[i], x, y, game_table)) {
+			(*game_table)[x][y] = choices[i];
+			if(solve(game_table, next_x, next_y)) return true;
+			(*game_table)[x][y] = EMPTY;
+		}
+	}
+	return false;
 }
 
 int main () {
@@ -263,12 +226,7 @@ int main () {
 
 	srand(time(NULL));
 	initialize_game_table(&game_table);
-	rand_solving_game_table(&game_table);
-
-	if(answer_is_valid(&game_table)) {
-		printf("Valid grid!");
-	}
-	//printf("cells: %d", rand_solving_game_table(&game_table));
+	solve(&game_table, 0, 0);
 		
 	render_updated_frame(prenderer, &game_table);
 
