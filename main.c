@@ -22,10 +22,15 @@ typedef enum {
 	SUN = 2
 } figure_t;
 
+typedef struct unvisited_node {
+	int x;
+	int y;
+} unvisited_node_t;
 
 void draw_figures(SDL_Renderer *prenderer, figure_t ***game_table);
 bool is_safe(figure_t potential_figure, int x, int y, figure_t ***game_table);
 bool check_adjency(figure_t selected_figure, int x, int y, figure_t ***game_table);
+void dig(figure_t ***game_table, unvisited_node_t *unvisited_nodes, int size); 
 
 void create_table_game(SDL_Renderer *prenderer) {
 	const SDL_Rect table_frame = { .x = TABLE_START_X, .y = TABLE_START_Y, .w = TABLE_WIDTH, .h = TABLE_HEIGHT };
@@ -46,12 +51,16 @@ void render_updated_frame(SDL_Renderer *prenderer, figure_t *** game_table) {
 	SDL_RenderPresent(prenderer);
 }
 
-void initialize_game_table(figure_t ***game_table){
+void initialize_game_table(figure_t ***game_table, unvisited_node_t *unvisited_nodes){
 	*game_table = malloc(6 * sizeof(figure_t *));
+	int count = 0;
 	for(int i = 0; i<6; i++){
 		(*game_table)[i] = malloc(6*sizeof(figure_t));
 		for(int j = 0; j < 6; j++){
 			(*game_table)[i][j] = EMPTY;
+			unvisited_nodes[count].x = i;
+			unvisited_nodes[count].y = j;
+			count++;
 		}
 	}
 }
@@ -157,11 +166,11 @@ bool check_adjency(figure_t selected_figure, int x, int y, figure_t ***game_tabl
 			status = 0;
 		}
 	}
-	//if(x != 4 && x != 5) {
-	//	if((*game_table)[x + 1][y] == selected_figure && (*game_table)[x + 2][y] == selected_figure) {
-	//		status = 0;
-	//	}
-	//}
+	if(x != 4 && x != 5) {
+		if((*game_table)[x + 1][y] == selected_figure && (*game_table)[x + 2][y] == selected_figure) {
+			status = 0;
+		}
+	}
 
 	// Check columns
 	if(y != 0 && y != 1 ) {
@@ -169,11 +178,12 @@ bool check_adjency(figure_t selected_figure, int x, int y, figure_t ***game_tabl
 			status = 0;
 		}
 	}
-	//if(y != 4 && y != 5) {
-	//	if((*game_table)[x][y + 1] == selected_figure && (*game_table)[x][y + 2] == selected_figure) {
-	//		status = 0;
-	//	}
-	//}
+	
+	if(y != 4 && y != 5) {
+		if((*game_table)[x][y + 1] == selected_figure && (*game_table)[x][y + 2] == selected_figure) {
+			status = 0;
+		}
+	}
 
 	return status;
 }
@@ -206,6 +216,72 @@ bool solve(figure_t ***game_table, int x, int y) {
 	return false;
 }
 
+void shuffle_unvisited_nodes(unvisited_node_t *unvisited_nodes, int length) {
+	int swap_index;
+	for(int i = 0; i < length; i++) {
+		swap_index = rand() % length;
+		// Swap x's
+		unvisited_nodes[i].x = unvisited_nodes[i].x ^ unvisited_nodes[swap_index].x;
+		unvisited_nodes[swap_index].x = unvisited_nodes[i].x ^ unvisited_nodes[swap_index].x;
+		unvisited_nodes[i].x = unvisited_nodes[i].x ^ unvisited_nodes[swap_index].x;
+
+		// Swap y's
+		unvisited_nodes[i].y = unvisited_nodes[i].y ^ unvisited_nodes[swap_index].y;
+		unvisited_nodes[swap_index].y = unvisited_nodes[i].y ^ unvisited_nodes[swap_index].y;
+		unvisited_nodes[i].y = unvisited_nodes[i].y ^ unvisited_nodes[swap_index].y;
+	}
+}
+
+bool check_last_round(int x, int y, unvisited_node_t last_visited) {
+	if(x == last_visited.x && y == last_visited.y) {
+		printf("hola\n");
+		return false;
+	}
+	return true;
+}
+
+bool check_forced_moves(figure_t ***game_table) {
+	static unvisited_node_t last_visited = { .x = -1, .y = -1 };
+	printf("Last move -> x: %d, y: %d\n", last_visited.x, last_visited.y);
+
+	bool resolvable = false;
+	int safe_count = 0;
+	figure_t figures[] = { MOON, SUN };
+	for(int i = 0; i < 6; i++){
+		for(int j = 0; j < 6; j++) {
+			for(int z = 0; z < 2; z++) {
+				if((*game_table)[i][j] == EMPTY) {
+					if(is_safe(figures[z], i, j, game_table) == 1) {
+						safe_count++;
+					}
+				
+					if(z == 1 && safe_count == 1 && check_last_round(i, j, last_visited)) {
+						printf("Forced move -> x: %d, y: %d, figure: %d\n", i, j, figures[z]);
+						resolvable = true;
+						last_visited.x = i;
+						last_visited.y = j;
+						break;
+					}
+				}
+			}
+		}
+	}
+
+	return resolvable;
+}
+
+void dig(figure_t ***game_table, unvisited_node_t *unvisited_nodes, int size) {
+	for(int	i = 0; i < size; i++) {
+		figure_t temp = (*game_table)[unvisited_nodes[i].x][unvisited_nodes[i].y];
+		(*game_table)[unvisited_nodes[i].x][unvisited_nodes[i].y] = EMPTY;
+		bool forced_moves = check_forced_moves(game_table);
+		//printf("Forced moves: %d\n", forced_moves);
+		if(!forced_moves) {
+			(*game_table)[unvisited_nodes[i].x][unvisited_nodes[i].y] = temp; 				
+		} 
+	}
+}
+
 int main () {
 	// We initialize the SDL Library
     SDL_Init(SDL_INIT_VIDEO);
@@ -221,13 +297,21 @@ int main () {
 	// We create a renderer that we will use in the window
    	SDL_Renderer *prenderer = SDL_CreateRenderer(pwindow,-1, 0);
 
+	srand(time(NULL));
+
 	// We create the 2D Array
 	figure_t **game_table;
+	
+	unvisited_node_t unvisited_nodes[36];
 
-	srand(time(NULL));
-	initialize_game_table(&game_table);
+	initialize_game_table(&game_table, unvisited_nodes);
+	shuffle_unvisited_nodes(unvisited_nodes, 36);
+	for(int i = 0; i < 36; i++){
+		//printf("unv_node = x: %d, y: %d\n", unvisited_nodes[i].x, unvisited_nodes[i].y);
+	}
 	solve(&game_table, 0, 0);
-		
+	
+	dig(&game_table, unvisited_nodes, 36); 
 	render_updated_frame(prenderer, &game_table);
 
 	int game_running = 1;
