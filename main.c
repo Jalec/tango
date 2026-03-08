@@ -30,7 +30,9 @@ typedef struct unvisited_node {
 void draw_figures(SDL_Renderer *prenderer, figure_t ***game_table);
 bool is_safe(figure_t potential_figure, int x, int y, figure_t ***game_table);
 bool check_adjency(figure_t selected_figure, int x, int y, figure_t ***game_table);
-void dig(figure_t ***game_table, unvisited_node_t *unvisited_nodes, int size); 
+void shuffle(figure_t *choices);
+void dig(figure_t ***game_table, unvisited_node_t *unvisited_nodes, int size, unvisited_node_t *visited_nodes);
+bool check_solutions(figure_t ***game_table, unvisited_node_t *visited_nodes, int size, int *count_solutions, int index); 
 
 void create_table_game(SDL_Renderer *prenderer) {
 	const SDL_Rect table_frame = { .x = TABLE_START_X, .y = TABLE_START_Y, .w = TABLE_WIDTH, .h = TABLE_HEIGHT };
@@ -184,8 +186,62 @@ bool check_adjency(figure_t selected_figure, int x, int y, figure_t ***game_tabl
 			status = 0;
 		}
 	}
-
+	
 	return status;
+}
+
+bool check_sequence(int x, int y, figure_t ***game_table) {
+	int sequence_row_moon = 0;
+	int sequence_col_moon = 0;
+	int sequence_row_sun = 0;
+	int sequence_col_sun = 0;
+
+	for(int i = 0; i < 6; i++) {
+		// MOON
+		if((*game_table)[x][i] == MOON) {
+			sequence_col_moon++;
+			if(sequence_col_moon == 3) {
+				return true;
+				break;
+			}
+		} else {
+			sequence_col_moon = 0;;
+		}
+
+		if((*game_table)[i][y] == MOON) {
+			sequence_row_moon++;
+			if(sequence_row_moon == 3) {
+				return true;
+				break;
+			}
+		} else {
+			sequence_row_moon = 0;
+		}
+
+		// SUN
+		if((*game_table)[x][i] == SUN) {
+			sequence_col_sun++;
+			if(sequence_col_sun == 3) {
+				return true;
+				break;
+			}
+
+		} else {
+			sequence_col_sun = 0;
+		}
+
+		if((*game_table)[i][y] == SUN) {
+			sequence_row_sun++;
+			if(sequence_row_sun == 3) {
+				return true;
+				break;
+			}
+		} else {
+			sequence_row_sun = 0;
+		}
+	}
+
+	return false;
 }
 
 void shuffle(figure_t *choices) {
@@ -232,6 +288,56 @@ void shuffle_unvisited_nodes(unvisited_node_t *unvisited_nodes, int length) {
 	}
 }
 
+bool check_gap(figure_t ***game_table, int x, int y, figure_t selected_figure) {
+	//(*game_table)[x][y] = selected_figure;
+	int count_selected_col = 0;
+	int count_selected_row = 0;
+	for(int z = 0; z < 6; z++){
+		if((*game_table)[x][z] == selected_figure){
+			count_selected_col++;
+		}
+		if((*game_table)[z][y] == selected_figure){
+			count_selected_row++;
+		}
+	}
+	
+	int gap_count = 0;
+	if(count_selected_col == 3) {
+		for(int i = 0; i < 6; i++) {
+			if((*game_table)[x][i] == selected_figure) {
+				gap_count = 0;
+			} else {
+				gap_count++;
+				if(gap_count == 3) {
+					(*game_table)[x][i] = EMPTY;
+					return true;
+					break;
+				}
+			}
+		}
+	}
+
+	if(count_selected_row == 3) {
+		for(int i = 0; i < 6; i++) {
+			if((*game_table)[i][y] == selected_figure) {
+				gap_count = 0;
+			} else {
+				gap_count++;
+				if(gap_count == 3) {
+					(*game_table)[i][y] = EMPTY;
+					return true;
+					break;
+				}
+			}
+		}
+	
+	}
+
+	(*game_table)[x][y] = EMPTY;
+	return false;
+}
+
+
 bool check_last_round(int x, int y, unvisited_node_t last_visited) {
 	if(x == last_visited.x && y == last_visited.y) {
 		printf("hola\n");
@@ -241,6 +347,7 @@ bool check_last_round(int x, int y, unvisited_node_t last_visited) {
 }
 
 bool check_forced_moves(figure_t ***game_table) {
+	int forced_moves = 0;
 	static unvisited_node_t last_visited = { .x = -1, .y = -1 };
 	printf("Last move -> x: %d, y: %d\n", last_visited.x, last_visited.y);
 
@@ -254,12 +361,13 @@ bool check_forced_moves(figure_t ***game_table) {
 					if(is_safe(figures[z], i, j, game_table) == 1) {
 						safe_count++;
 					}
-				
-					if(z == 1 && safe_count == 1 && check_last_round(i, j, last_visited)) {
+					
+					if(z == 1 && safe_count == 1) {
 						printf("Forced move -> x: %d, y: %d, figure: %d\n", i, j, figures[z]);
 						resolvable = true;
 						last_visited.x = i;
 						last_visited.y = j;
+						forced_moves++;
 						break;
 					}
 				}
@@ -270,14 +378,53 @@ bool check_forced_moves(figure_t ***game_table) {
 	return resolvable;
 }
 
-void dig(figure_t ***game_table, unvisited_node_t *unvisited_nodes, int size) {
+
+bool check_solutions(figure_t ***game_table, unvisited_node_t *visited_nodes, int size, int *count_solutions, int index) {
+	figure_t choices[2] = {0,0};
+	shuffle(choices);
+
+	if(index == size) {
+		(*count_solutions)++;
+		if((*count_solutions) > 1) {
+			return false;
+		}
+		return false;
+	}
+
+	for(int i = 0; i < 2; i++) {
+		if(is_safe(choices[i], visited_nodes[index].x, visited_nodes[index].y, game_table)) {
+			(*game_table)[visited_nodes[index].x][visited_nodes[index].y] = choices[i];
+			if(!check_sequence(visited_nodes[index].x, visited_nodes[index].y, game_table)){
+				if(check_solutions(game_table, visited_nodes, size, count_solutions, index + 1)) return true;
+			}
+			(*game_table)[visited_nodes[index].x][visited_nodes[index].y] = EMPTY;
+		}
+	}
+
+	return false;
+}
+
+void dig(figure_t ***game_table, unvisited_node_t *unvisited_nodes, int size, unvisited_node_t *visited_nodes) {
+	int visited_count = 0;
+	int count_solutions = 0;
+
 	for(int	i = 0; i < size; i++) {
 		figure_t temp = (*game_table)[unvisited_nodes[i].x][unvisited_nodes[i].y];
 		(*game_table)[unvisited_nodes[i].x][unvisited_nodes[i].y] = EMPTY;
-		bool forced_moves = check_forced_moves(game_table);
-		//printf("Forced moves: %d\n", forced_moves);
-		if(!forced_moves) {
-			(*game_table)[unvisited_nodes[i].x][unvisited_nodes[i].y] = temp; 				
+		visited_nodes[i] = unvisited_nodes[i];
+		for(int jx = 0; jx < size - (size - i); jx++){
+			printf("visited_nodes: x->%d y->%d\n", visited_nodes[jx].x, visited_nodes[jx].y);
+		}
+		visited_count++;
+		printf("Visited_count: %d\n", visited_count);
+		count_solutions = 0;
+		bool result = check_solutions(game_table, visited_nodes, visited_count, &count_solutions, 0);
+		printf("Count: %d\n", count_solutions);
+		if(count_solutions > 1 || count_solutions < 1) {
+			//printf("FIgure: %d\n", temp);
+			printf("coords: x: %d, y: %d\n", unvisited_nodes[i].x, unvisited_nodes[i].y);
+			(*game_table)[unvisited_nodes[i].x][unvisited_nodes[i].y] = temp;
+			//visited_count--;
 		} 
 	}
 }
@@ -303,15 +450,16 @@ int main () {
 	figure_t **game_table;
 	
 	unvisited_node_t unvisited_nodes[36];
+	unvisited_node_t *visited_nodes = malloc(36 * sizeof(unvisited_node_t));
 
 	initialize_game_table(&game_table, unvisited_nodes);
 	shuffle_unvisited_nodes(unvisited_nodes, 36);
-	for(int i = 0; i < 36; i++){
-		//printf("unv_node = x: %d, y: %d\n", unvisited_nodes[i].x, unvisited_nodes[i].y);
-	}
+
 	solve(&game_table, 0, 0);
 	
-	dig(&game_table, unvisited_nodes, 36); 
+	dig(&game_table, unvisited_nodes, 36, visited_nodes);
+	free(visited_nodes);
+
 	render_updated_frame(prenderer, &game_table);
 
 	int game_running = 1;
@@ -331,10 +479,11 @@ int main () {
 				case SDL_MOUSEBUTTONDOWN:
 					figure_t selected_figure = get_next_figure(game_table[coord_to_table(event.button.x)][coord_to_table(event.button.y)]);
 
-					printf("%d\n",is_safe(selected_figure, coord_to_table(event.button.x), coord_to_table(event.button.y), &game_table));
+					//printf("%d\n",is_safe(selected_figure, coord_to_table(event.button.x), coord_to_table(event.button.y), &game_table));
 					game_table[coord_to_table(event.button.x)][coord_to_table(event.button.y)] = selected_figure;
-				    
-
+				    //check_gap(&game_table, coord_to_table(event.button.x), coord_to_table(event.button.y), selected_figure);
+                    int result = check_sequence(coord_to_table(event.button.x), coord_to_table(event.button.y), &game_table);
+					printf("Result: %d\n", result);
 					render_updated_frame(prenderer, &game_table);
 					break;
 			}

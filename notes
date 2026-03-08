@@ -1,0 +1,8 @@
+- check adjency is not enough because is only checking the next two or th previous two but not checking what happens if I put a moon between two moons,
+	so I should make a function that checks that sort of things.
+
+- I feel like the check gap function is not working properly.
+
+- check balance is not alright it also needs a review or a separate function to check the balance.
+
+- we may need a visited nodes array
