@@ -390,6 +390,11 @@ bool check_solutions(figure_t ***game_table, unvisited_node_t *visited_nodes, in
 		}
 		return false;
 	}
+	
+	if((*game_table)[visited_nodes[index].x][visited_nodes[index].y] != EMPTY) {
+		check_solutions(game_table, visited_nodes, size, count_solutions, index + 1);
+		return false;
+	}
 
 	for(int i = 0; i < 2; i++) {
 		if(is_safe(choices[i], visited_nodes[index].x, visited_nodes[index].y, game_table)) {
@@ -412,9 +417,6 @@ void dig(figure_t ***game_table, unvisited_node_t *unvisited_nodes, int size, un
 		figure_t temp = (*game_table)[unvisited_nodes[i].x][unvisited_nodes[i].y];
 		(*game_table)[unvisited_nodes[i].x][unvisited_nodes[i].y] = EMPTY;
 		visited_nodes[i] = unvisited_nodes[i];
-		for(int jx = 0; jx < size - (size - i); jx++){
-			printf("visited_nodes: x->%d y->%d\n", visited_nodes[jx].x, visited_nodes[jx].y);
-		}
 		visited_count++;
 		printf("Visited_count: %d\n", visited_count);
 		count_solutions = 0;
@@ -426,6 +428,9 @@ void dig(figure_t ***game_table, unvisited_node_t *unvisited_nodes, int size, un
 			(*game_table)[unvisited_nodes[i].x][unvisited_nodes[i].y] = temp;
 			//visited_count--;
 		} 
+		if(!check_forced_moves(game_table)) {
+			(*game_table)[unvisited_nodes[i].x][unvisited_nodes[i].y] = temp;
+		}
 	}
 }
 
