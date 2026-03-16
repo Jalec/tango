@@ -2,7 +2,7 @@
 CC = gcc
 
 # Define compiler flags
-CFLAGS = -lSDL2 -lm
+CFLAGS = -lSDL2 -lm -lSDL2_image
 
 # Define the source files
 SRCS = main.c render_figures.c

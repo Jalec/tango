@@ -3,6 +3,6 @@
 
 #include<SDL2/SDL.h>
 
-int SDL_RenderDrawCircle(SDL_Renderer * renderer, int x, int y, int radius);
+void SDL_RenderDrawFigure(SDL_Renderer * renderer, SDL_Texture * texture, int x, int y);
 
 #endif

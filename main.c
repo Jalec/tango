@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_image.h>
 
 #include "render_figures.h"
 
@@ -27,7 +28,7 @@ typedef struct unvisited_node {
 	int y;
 } unvisited_node_t;
 
-void draw_figures(SDL_Renderer *prenderer, figure_t ***game_table);
+void draw_figures(SDL_Renderer *prenderer, figure_t ***game_table, SDL_Texture * ptexture_sun, SDL_Texture * ptexture_moon);
 bool is_safe(figure_t potential_figure, int x, int y, figure_t ***game_table);
 bool check_adjency(figure_t selected_figure, int x, int y, figure_t ***game_table);
 void shuffle(figure_t *choices);
@@ -45,11 +46,11 @@ void create_table_game(SDL_Renderer *prenderer) {
 	}
 }
 
-void render_updated_frame(SDL_Renderer *prenderer, figure_t *** game_table) {		
+void render_updated_frame(SDL_Renderer *prenderer, figure_t *** game_table, SDL_Texture * ptexture_sun, SDL_Texture * ptexture_moon) {		
 	SDL_SetRenderDrawColor(prenderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
 	SDL_RenderClear(prenderer);
 	create_table_game(prenderer);
-	draw_figures(prenderer, game_table);
+	draw_figures(prenderer, game_table, ptexture_sun, ptexture_moon);
 	SDL_RenderPresent(prenderer);
 }
 
@@ -90,9 +91,9 @@ bool check_balance(figure_t selected_figure, int x, int y, figure_t ***game_tabl
 
 bool is_safe(figure_t potential_figure, int x, int y, figure_t ***game_table) {
 	if(check_balance(potential_figure, x, y, game_table) == 1 && check_adjency(potential_figure, x, y, game_table) == 1) {
-		return 1;
+		return true;
 	}
-	return 0;
+	return false;
 }
 
 figure_t opposite_figure(figure_t figure) {
@@ -122,16 +123,15 @@ void free_game_table(figure_t ***game_table){
 }
 
 
-void draw_figures(SDL_Renderer *prenderer, figure_t ***game_table){
+void draw_figures(SDL_Renderer *prenderer, figure_t ***game_table, SDL_Texture * ptexture_sun, SDL_Texture * ptexture_moon){
 	for(int i = 0; i < 6; i++){
 		for(int j = 0; j < 6; j++) {
 			switch((*game_table)[i][j]) {
 				case MOON:
-					SDL_RenderDrawCircle(prenderer, 60 + (i*120), 60 + (j*120), 30);
+					SDL_RenderDrawFigure(prenderer, ptexture_moon, 10 + (i*120), 10 + (j*120));
 					break;
 				case SUN:
-					const SDL_Rect sun = { .x = 40 + (i*120), .y = 40 + (j*120), .w = 40, .h = 40 };
-					SDL_RenderDrawRect(prenderer, &sun);
+					SDL_RenderDrawFigure(prenderer, ptexture_sun, 10 + (i*120), 10 + (j*120));
 					break;
 			}	
 		}
@@ -288,69 +288,7 @@ void shuffle_unvisited_nodes(unvisited_node_t *unvisited_nodes, int length) {
 	}
 }
 
-bool check_gap(figure_t ***game_table, int x, int y, figure_t selected_figure) {
-	//(*game_table)[x][y] = selected_figure;
-	int count_selected_col = 0;
-	int count_selected_row = 0;
-	for(int z = 0; z < 6; z++){
-		if((*game_table)[x][z] == selected_figure){
-			count_selected_col++;
-		}
-		if((*game_table)[z][y] == selected_figure){
-			count_selected_row++;
-		}
-	}
-	
-	int gap_count = 0;
-	if(count_selected_col == 3) {
-		for(int i = 0; i < 6; i++) {
-			if((*game_table)[x][i] == selected_figure) {
-				gap_count = 0;
-			} else {
-				gap_count++;
-				if(gap_count == 3) {
-					(*game_table)[x][i] = EMPTY;
-					return true;
-					break;
-				}
-			}
-		}
-	}
-
-	if(count_selected_row == 3) {
-		for(int i = 0; i < 6; i++) {
-			if((*game_table)[i][y] == selected_figure) {
-				gap_count = 0;
-			} else {
-				gap_count++;
-				if(gap_count == 3) {
-					(*game_table)[i][y] = EMPTY;
-					return true;
-					break;
-				}
-			}
-		}
-	
-	}
-
-	(*game_table)[x][y] = EMPTY;
-	return false;
-}
-
-
-bool check_last_round(int x, int y, unvisited_node_t last_visited) {
-	if(x == last_visited.x && y == last_visited.y) {
-		printf("hola\n");
-		return false;
-	}
-	return true;
-}
-
 bool check_forced_moves(figure_t ***game_table) {
-	int forced_moves = 0;
-	static unvisited_node_t last_visited = { .x = -1, .y = -1 };
-	printf("Last move -> x: %d, y: %d\n", last_visited.x, last_visited.y);
-
 	bool resolvable = false;
 	int safe_count = 0;
 	figure_t figures[] = { MOON, SUN };
@@ -363,11 +301,7 @@ bool check_forced_moves(figure_t ***game_table) {
 					}
 					
 					if(z == 1 && safe_count == 1) {
-						printf("Forced move -> x: %d, y: %d, figure: %d\n", i, j, figures[z]);
 						resolvable = true;
-						last_visited.x = i;
-						last_visited.y = j;
-						forced_moves++;
 						break;
 					}
 				}
@@ -385,9 +319,6 @@ bool check_solutions(figure_t ***game_table, unvisited_node_t *visited_nodes, in
 
 	if(index == size) {
 		(*count_solutions)++;
-		if((*count_solutions) > 1) {
-			return false;
-		}
 		return false;
 	}
 	
@@ -400,7 +331,7 @@ bool check_solutions(figure_t ***game_table, unvisited_node_t *visited_nodes, in
 		if(is_safe(choices[i], visited_nodes[index].x, visited_nodes[index].y, game_table)) {
 			(*game_table)[visited_nodes[index].x][visited_nodes[index].y] = choices[i];
 			if(!check_sequence(visited_nodes[index].x, visited_nodes[index].y, game_table)){
-				if(check_solutions(game_table, visited_nodes, size, count_solutions, index + 1)) return true;
+				check_solutions(game_table, visited_nodes, size, count_solutions, index + 1);
 			}
 			(*game_table)[visited_nodes[index].x][visited_nodes[index].y] = EMPTY;
 		}
@@ -418,18 +349,12 @@ void dig(figure_t ***game_table, unvisited_node_t *unvisited_nodes, int size, un
 		(*game_table)[unvisited_nodes[i].x][unvisited_nodes[i].y] = EMPTY;
 		visited_nodes[i] = unvisited_nodes[i];
 		visited_count++;
-		printf("Visited_count: %d\n", visited_count);
 		count_solutions = 0;
 		bool result = check_solutions(game_table, visited_nodes, visited_count, &count_solutions, 0);
-		printf("Count: %d\n", count_solutions);
-		if(count_solutions > 1 || count_solutions < 1) {
-			//printf("FIgure: %d\n", temp);
-			printf("coords: x: %d, y: %d\n", unvisited_nodes[i].x, unvisited_nodes[i].y);
+
+		if(count_solutions > 1 || !check_forced_moves(game_table)) {
 			(*game_table)[unvisited_nodes[i].x][unvisited_nodes[i].y] = temp;
-			//visited_count--;
-		} 
-		if(!check_forced_moves(game_table)) {
-			(*game_table)[unvisited_nodes[i].x][unvisited_nodes[i].y] = temp;
+			printf("Node hint -> x: %d, y: %d\n", unvisited_nodes[i].y, unvisited_nodes[i].x);
 		}
 	}
 }
@@ -448,6 +373,9 @@ int main () {
 
 	// We create a renderer that we will use in the window
    	SDL_Renderer *prenderer = SDL_CreateRenderer(pwindow,-1, 0);
+	
+	SDL_Texture *ptexture_sun = IMG_LoadTexture(prenderer, "./assets/SUN.png");
+	SDL_Texture *ptexture_moon = IMG_LoadTexture(prenderer, "./assets/MOON.png");
 
 	srand(time(NULL));
 
@@ -455,17 +383,16 @@ int main () {
 	figure_t **game_table;
 	
 	unvisited_node_t unvisited_nodes[36];
-	unvisited_node_t *visited_nodes = malloc(36 * sizeof(unvisited_node_t));
-
+	unvisited_node_t visited_nodes[36];
+	unvisited_node_t *hint_nodes = malloc(10 * sizeof(unvisited_node_t));
 	initialize_game_table(&game_table, unvisited_nodes);
 	shuffle_unvisited_nodes(unvisited_nodes, 36);
 
 	solve(&game_table, 0, 0);
 	
 	dig(&game_table, unvisited_nodes, 36, visited_nodes);
-	free(visited_nodes);
 
-	render_updated_frame(prenderer, &game_table);
+	render_updated_frame(prenderer, &game_table, ptexture_sun, ptexture_moon);
 
 	int game_running = 1;
 	while (game_running) {
@@ -483,13 +410,8 @@ int main () {
 					break;
 				case SDL_MOUSEBUTTONDOWN:
 					figure_t selected_figure = get_next_figure(game_table[coord_to_table(event.button.x)][coord_to_table(event.button.y)]);
-
-					//printf("%d\n",is_safe(selected_figure, coord_to_table(event.button.x), coord_to_table(event.button.y), &game_table));
 					game_table[coord_to_table(event.button.x)][coord_to_table(event.button.y)] = selected_figure;
-				    //check_gap(&game_table, coord_to_table(event.button.x), coord_to_table(event.button.y), selected_figure);
-                    int result = check_sequence(coord_to_table(event.button.x), coord_to_table(event.button.y), &game_table);
-					printf("Result: %d\n", result);
-					render_updated_frame(prenderer, &game_table);
+					render_updated_frame(prenderer, &game_table, ptexture_sun, ptexture_moon);
 					break;
 			}
 		}
@@ -498,7 +420,10 @@ int main () {
 	}
 	
 	free_game_table(&game_table);
-    SDL_DestroyWindow(pwindow);
+	SDL_DestroyTexture(ptexture_moon);
+	SDL_DestroyTexture(ptexture_sun);
+	SDL_DestroyWindow(pwindow);
+	SDL_DestroyRenderer(prenderer);
 	SDL_Quit();
 
     return 0;
